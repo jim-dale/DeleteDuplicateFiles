@@ -1,49 +1,48 @@
-﻿using System;
+﻿namespace DeleteDuplicateFiles;
 
-namespace DeleteDuplicateFiles
+using System;
+
+internal class Summary
 {
-    internal class Summary
+    private readonly bool isSimulation;
+    private int filesDeleted;
+    private long bytesFreed;
+
+    public Summary(bool isSimulation)
     {
-        private bool _isSimulation;
-        private int _filesDeleted;
-        private long _bytesFreed;
+        this.isSimulation = isSimulation;
+    }
 
-        public Summary(bool isSimulation)
+    public void RegisterFileDeletion(long bytesFreed)
+    {
+        ++this.filesDeleted;
+        this.bytesFreed += bytesFreed;
+    }
+
+    public void Show()
+    {
+        Console.WriteLine();
+
+        if (this.isSimulation)
         {
-            _isSimulation = isSimulation;
-        }
-
-        public void RegisterFileDeletion(long bytesFreed)
-        {
-            ++_filesDeleted;
-            _bytesFreed += bytesFreed;
-        }
-
-        public void Show()
-        {
-            Console.WriteLine();
-
-            if (_isSimulation)
+            if (this.filesDeleted > 0)
             {
-                if (_filesDeleted > 0)
-                {
-                    Console.WriteLine($"{_filesDeleted} files would have been deleted and {_bytesFreed} bytes would have been recovered.");
-                }
-                else
-                {
-                    Console.WriteLine($"No files would have been deleted.");
-                }
+                Console.WriteLine($"{this.filesDeleted} files would have been deleted and {this.bytesFreed} bytes would have been recovered.");
             }
             else
             {
-                if (_filesDeleted > 0)
-                {
-                    Console.WriteLine($"{_filesDeleted} files have been deleted and {_bytesFreed} bytes have been recovered.");
-                }
-                else
-                {
-                    Console.WriteLine($"No files have been deleted.");
-                }
+                Console.WriteLine($"No files would have been deleted.");
+            }
+        }
+        else
+        {
+            if (this.filesDeleted > 0)
+            {
+                Console.WriteLine($"{this.filesDeleted} files have been deleted and {this.bytesFreed} bytes have been recovered.");
+            }
+            else
+            {
+                Console.WriteLine($"No files have been deleted.");
             }
         }
     }

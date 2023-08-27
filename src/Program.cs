@@ -1,117 +1,116 @@
-﻿using System;
+﻿namespace DeleteDuplicateFiles;
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommandLine;
 
-namespace DeleteDuplicateFiles
+internal static class Program
 {
-    class Program
+    internal static void Main(string[] args)
     {
-        static void Main(string[] args)
+        Parser.Default.ParseArguments<Options>(args)
+            .WithParsed<Options>(Execute)
+            .WithNotParsed(HandleParseError);
+    }
+
+    private static void Execute(Options options)
+    {
+        if (options.All)
         {
-            Parser.Default.ParseArguments<Options>(args)
-                .WithParsed<Options>(Execute)
-                .WithNotParsed(HandleParseError);
+            ExecuteAllDirectories(options);
+        }
+        else
+        {
+            ExecutePerDirectory(options);
+        }
+    }
+    
+    private static void ExecuteAllDirectories(Options options)
+    {
+        var summary = new Summary(options.DeleteDuplicates == false);
+
+        var processor = new AllDirectories(options, summary);
+
+        processor.Run(ProcessFiles);
+
+        if (options.ShowSummary)
+        {
+            summary.Show();
+        }
+    }
+
+    private static void ExecutePerDirectory(Options options)
+    {
+        var summary = new Summary(options.DeleteDuplicates == false);
+
+        var processor = new PerDirectory(options, summary);
+
+        processor.Run(ProcessFiles);
+
+        if (options.ShowSummary)
+        {
+            summary.Show();
+        }
+    }
+
+    private static void ProcessFiles(IEnumerable<FileInfo> items, Options options, Summary summary)
+    {
+        if (options.Verbose)
+        {
+            items.Show();
         }
 
-        private static void Execute(Options options)
+        IEnumerable<IGrouping<long, FileInfo>> sizeGroups = items.GroupByFileLength()
+            .FilterByGroupSize(1);
+
+        if (options.Verbose)
         {
-            if (options.All)
-            {
-                ExecuteAllDirectories(options);
-            }
-            else
-            {
-                ExecutePerDirectory(options);
-            }
-        }
-        
-        private static void ExecuteAllDirectories(Options options)
-        {
-            var summary = new Summary(options.DeleteDuplicates == false);
-
-            var processor = new AllDirectories(options, summary);
-
-            processor.Run(ProcessFiles);
-
-            if (options.ShowSummary)
-            {
-                summary.Show();
-            }
+            sizeGroups.Show();
         }
 
-        private static void ExecutePerDirectory(Options options)
+        IEnumerable<IGrouping<string, FileInfo>> hashGroups = sizeGroups.GroupByHash()
+            .FilterByGroupSize(1);
+
+        if (options.Verbose)
         {
-            var summary = new Summary(options.DeleteDuplicates == false);
-
-            var processor = new PerDirectory(options, summary);
-
-            processor.Run(ProcessFiles);
-
-            if (options.ShowSummary)
-            {
-                summary.Show();
-            }
+            hashGroups.Show();
         }
 
-        private static void ProcessFiles(IEnumerable<FileInfo> items, Options options, Summary summary)
+        foreach (IGrouping<string, FileInfo> hashGroup in hashGroups)
         {
-            if (options.Verbose)
+            string hash = hashGroup.Key;
+
+            IOrderedEnumerable<FileInfo> orderedItems = OrderFilesByPriority(hashGroup);
+
+            FileInfo retainedItem = orderedItems.First();
+
+            Console.WriteLine($"Hash={hash}\\Count={orderedItems.Count()}");
+            retainedItem.Show("Retain");
+
+            foreach (FileInfo? item in orderedItems.Skip(1))
             {
-                items.Show();
-            }
+                item.Show("Delete");
 
-            var sizeGroups = items.GroupByFileLength()
-                .FilterByGroupSize(1);
-
-            if (options.Verbose)
-            {
-                sizeGroups.Show();
-            }
-
-            var hashGroups = sizeGroups.GroupByHash()
-                .FilterByGroupSize(1);
-
-            if (options.Verbose)
-            {
-                hashGroups.Show();
-            }
-
-            foreach (var hashGroup in hashGroups)
-            {
-                var hash = hashGroup.Key;
-
-                var orderedItems = OrderFilesByPriority(hashGroup);
-
-                var retainedItem = orderedItems.First();
-
-                Console.WriteLine($"Hash={hash}\\Count={orderedItems.Count()}");
-                retainedItem.Show("Retain");
-
-                foreach (var item in orderedItems.Skip(1))
+                if (options.DeleteDuplicates)
                 {
-                    item.Show("Delete");
-
-                    if (options.DeleteDuplicates)
-                    {
-                        item.Delete();
-                    }
-                    summary.RegisterFileDeletion(item.Length);
+                    item.Delete();
                 }
+                summary.RegisterFileDeletion(item.Length);
             }
         }
+    }
 
-        private static IOrderedEnumerable<FileInfo> OrderFilesByPriority(IEnumerable<FileInfo> items)
-        {
-            return from fi in items
-                   orderby fi.CreationTimeUtc, fi.FullName
-                   select fi;
-        }
+    private static IOrderedEnumerable<FileInfo> OrderFilesByPriority(IEnumerable<FileInfo> items)
+    {
+        return from fi in items
+               orderby fi.CreationTimeUtc, fi.FullName
+               select fi;
+    }
 
-        private static void HandleParseError(IEnumerable<Error> errs)
-        {
-            //TODO: Show errors
-        }
+    private static void HandleParseError(IEnumerable<Error> errs)
+    {
+        //TODO: Show errors
     }
 }
