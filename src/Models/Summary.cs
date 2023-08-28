@@ -1,4 +1,4 @@
-﻿namespace DeleteDuplicateFiles;
+﻿namespace DeleteDuplicateFiles.Models;
 
 using System;
 

@@ -2,9 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using CommandLine;
+using DeleteDuplicateFiles.Helpers;
+using DeleteDuplicateFiles.Models;
 
 internal static class Program
 {
@@ -17,23 +18,13 @@ internal static class Program
 
     private static void Execute(Options options)
     {
-        if (options.All)
-        {
-            ExecuteAllDirectories(options);
-        }
-        else
-        {
-            ExecutePerDirectory(options);
-        }
-    }
-    
-    private static void ExecuteAllDirectories(Options options)
-    {
         var summary = new Summary(options.DeleteDuplicates == false);
 
-        var processor = new AllDirectories(options, summary);
+        var processor = new FileFinder(options);
 
-        processor.Run(ProcessFiles);
+        IEnumerable<DedupFileInfo> items = processor.GetItems();
+
+        ProcessFiles(items, options, summary);
 
         if (options.ShowSummary)
         {
@@ -41,76 +32,48 @@ internal static class Program
         }
     }
 
-    private static void ExecutePerDirectory(Options options)
-    {
-        var summary = new Summary(options.DeleteDuplicates == false);
-
-        var processor = new PerDirectory(options, summary);
-
-        processor.Run(ProcessFiles);
-
-        if (options.ShowSummary)
-        {
-            summary.Show();
-        }
-    }
-
-    private static void ProcessFiles(IEnumerable<FileInfo> items, Options options, Summary summary)
+    private static void ProcessFiles(IEnumerable<DedupFileInfo> items, Options options, Summary summary)
     {
         if (options.Verbose)
         {
             items.Show();
         }
 
-        IEnumerable<IGrouping<long, FileInfo>> sizeGroups = items.GroupByFileLength()
-            .FilterByGroupSize(1);
+        IEnumerable<IGrouping<string, DedupFileInfo>> groups = items.GroupBy(x => x.HashString).Where(g => g.Count() > 1);
 
         if (options.Verbose)
         {
-            sizeGroups.Show();
+            groups.Show();
         }
 
-        IEnumerable<IGrouping<string, FileInfo>> hashGroups = sizeGroups.GroupByHash()
-            .FilterByGroupSize(1);
-
-        if (options.Verbose)
+        foreach (IGrouping<string, DedupFileInfo> group in groups)
         {
-            hashGroups.Show();
-        }
+            string hash = group.Key;
 
-        foreach (IGrouping<string, FileInfo> hashGroup in hashGroups)
-        {
-            string hash = hashGroup.Key;
+            IOrderedEnumerable<DedupFileInfo> orderedItems = group.OrderBy(i => i.FileNameLength).ThenBy(i => i.CreationTimeUtc);
 
-            IOrderedEnumerable<FileInfo> orderedItems = OrderFilesByPriority(hashGroup);
-
-            FileInfo retainedItem = orderedItems.First();
+            DedupFileInfo itemToBeRetained = orderedItems.First();
 
             Console.WriteLine($"Hash={hash}\\Count={orderedItems.Count()}");
-            retainedItem.Show("Retain");
+            itemToBeRetained.Show("Retain");
 
-            foreach (FileInfo? item in orderedItems.Skip(1))
+            DedupFileInfo[] itemsToBeDeleted = orderedItems.Skip(1).ToArray();
+
+            foreach (DedupFileInfo item in itemsToBeDeleted)
             {
                 item.Show("Delete");
 
                 if (options.DeleteDuplicates)
                 {
-                    item.Delete();
+                    File.Delete(item.Path);
                 }
-                summary.RegisterFileDeletion(item.Length);
+                summary.RegisterFileDeletion(item.FileLength);
             }
         }
     }
 
-    private static IOrderedEnumerable<FileInfo> OrderFilesByPriority(IEnumerable<FileInfo> items)
+    private static void HandleParseError(IEnumerable<Error> errors)
     {
-        return from fi in items
-               orderby fi.CreationTimeUtc, fi.FullName
-               select fi;
-    }
-
-    private static void HandleParseError(IEnumerable<Error> errs)
-    {
-        //TODO: Show errors
+        // TODO: Show errors
     }
 }

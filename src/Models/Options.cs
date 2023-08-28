@@ -1,4 +1,4 @@
-﻿namespace DeleteDuplicateFiles;
+﻿namespace DeleteDuplicateFiles.Models;
 
 using CommandLine;
 
@@ -12,9 +12,6 @@ internal class Options
 
     [Option('x', "exclude", Required = false, HelpText = "The file patterns to exclude in the search for duplicates. Separate each pattern with a semicolon character. For example '*.mp4;*.webm'")]
     public string Exclude { get; set; } = string.Empty;
-
-    [Option("all", Required = false, HelpText = "Process all files as a single list of files.")]
-    public bool All { get; set; }
 
     [Option("delete", Required = false, Default = false, HelpText = "Delete the duplicate files.")]
     public bool DeleteDuplicates { get; set; }
