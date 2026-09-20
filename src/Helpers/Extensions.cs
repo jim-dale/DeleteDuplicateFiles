@@ -10,7 +10,7 @@ using Microsoft.Extensions.FileSystemGlobbing;
 
 public static class Extensions
 {
-    public static Matcher AddIncludePatterns(this Matcher result, string patterns, char separator, string defaultValue)
+    public static Matcher AddIncludePatternsOrDefault(this Matcher result, string? patterns, string defaultValue, char separator)
     {
         if (string.IsNullOrEmpty(patterns))
         {
@@ -18,18 +18,18 @@ public static class Extensions
         }
         else
         {
-            string[] items = patterns.Split(new char[] { separator }, StringSplitOptions.RemoveEmptyEntries);
+            string[] items = patterns.Split(separator, StringSplitOptions.RemoveEmptyEntries);
             result.AddIncludePatterns(items);
         }
 
         return result;
     }
 
-    public static Matcher AddExcludePatterns(this Matcher result, string patterns, char separator)
+    public static Matcher AddExcludePatterns(this Matcher result, string? patterns, char separator)
     {
-        if (string.IsNullOrEmpty(patterns) == false)
+        if (!string.IsNullOrEmpty(patterns))
         {
-            string[] items = patterns.Split(new char[] { separator }, StringSplitOptions.RemoveEmptyEntries);
+            string[] items = patterns.Split(separator, StringSplitOptions.RemoveEmptyEntries);
             result.AddExcludePatterns(items);
         }
 

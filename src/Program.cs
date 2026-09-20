@@ -1,79 +1,72 @@
 ﻿namespace DeleteDuplicateFiles;
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using CommandLine;
+using System.CommandLine;
 using DeleteDuplicateFiles.Helpers;
 using DeleteDuplicateFiles.Models;
 
 internal static class Program
 {
-    internal static void Main(string[] args)
+    internal static int Main(string[] args)
     {
-        Parser.Default.ParseArguments<Options>(args)
-            .WithParsed<Options>(Execute)
-            .WithNotParsed(HandleParseError);
-    }
-
-    private static void Execute(Options options)
-    {
-        var summary = new Summary(options.DeleteDuplicates == false);
-
-        var processor = new FileFinder(options);
-
-        IEnumerable<DedupFileInfo> items = processor.GetItems();
-
-        ProcessFiles(items, options, summary);
-
-        if (options.ShowSummary)
+        Option<DirectoryInfo> pathOption = new("--path", "-p")
         {
-            summary.Show();
-        }
-    }
-
-    private static void ProcessFiles(IEnumerable<DedupFileInfo> items, Options options, Summary summary)
-    {
-        if (options.Verbose)
+            Description = "Sets the directory to search for duplicate files.",
+            DefaultValueFactory = _ => new DirectoryInfo(Directory.GetCurrentDirectory()),
+            Arity = ArgumentArity.ZeroOrOne,
+        };
+        Option<string> includeOption = new("--include", "-i")
         {
-            items.Show();
-        }
-
-        IEnumerable<IGrouping<string, DedupFileInfo>> groups = items.GroupBy(x => x.HashString).Where(g => g.Count() > 1);
-
-        if (options.Verbose)
+            Description = "The file patterns to include in the search for duplicates. Separate each pattern with a semicolon. For example '*.jpg;*.png'",
+            DefaultValueFactory = _ => FileFinderWithHash.DefaultIncludePattern,
+            Arity = ArgumentArity.ZeroOrOne,
+        };
+        Option<string> excludeOption = new("--exclude", "-x")
         {
-            groups.Show();
-        }
-
-        foreach (IGrouping<string, DedupFileInfo> group in groups)
+            Description = "The file patterns to exclude in the search for duplicates. Separate each pattern with a semicolon. For example '*.mp4;*.webm'",
+            DefaultValueFactory = _ => string.Empty,
+            Arity = ArgumentArity.ZeroOrOne,
+        };
+        Option<bool> deleteOption = new("--delete")
         {
-            string hash = group.Key;
+            Description = "Delete the duplicate files. If this option is not specified, the effect of running the command will be shown but the files will not be deleted.",
+        };
+        Option<bool> summaryOption = new("--summary", "-s")
+        {
+            Description = "Show summary information.",
+        };
+        Option<bool> verboseOption = new("--verbose", "-v")
+        {
+            Description = "Set output to verbose messages.",
+        };
 
-            IOrderedEnumerable<DedupFileInfo> orderedItems = group.OrderBy(i => i.FileNameLength).ThenBy(i => i.CreationTimeUtc);
+        RootCommand rootCommand = new("Delete duplicate files in a directory")
+        {
+            Options = { pathOption, includeOption, excludeOption, deleteOption, summaryOption, verboseOption, },
+        };
 
-            DedupFileInfo itemToBeRetained = orderedItems.First();
-
-            Console.WriteLine($"Hash={hash}\\Count={orderedItems.Count()}");
-            itemToBeRetained.Show("Retain");
-
-            DedupFileInfo[] itemsToBeDeleted = orderedItems.Skip(1).ToArray();
-
-            foreach (DedupFileInfo item in itemsToBeDeleted)
+        rootCommand.SetAction(parseResult =>
+        {
+            FileFinderOptions finderOptions = new()
             {
-                item.Show("Delete");
+                Path = parseResult.GetRequiredValue(pathOption),
+                Include = parseResult.GetRequiredValue(includeOption),
+                Exclude = parseResult.GetRequiredValue(excludeOption),
+            };
+            FileFinderWithHash fileFinder = new(finderOptions);
 
-                if (options.DeleteDuplicates)
-                {
-                    File.Delete(item.Path);
-                }
-                summary.RegisterFileDeletion(item.FileLength);
-            }
-        }
-    }
+            DedupOptions dedupOptions = new()
+            {
+                DeleteDuplicates = parseResult.GetRequiredValue(deleteOption),
+                ShowSummary = parseResult.GetRequiredValue(summaryOption),
+                Verbose = parseResult.GetRequiredValue(verboseOption),
+            };
+            DedupCommand command = new(dedupOptions, fileFinder);
 
-    private static void HandleParseError(IEnumerable<Error> errors)
-    {
-        // TODO: Show errors
+            return command.Execute();
+        });
+
+        ParseResult parseResult = rootCommand.Parse(args);
+        return parseResult.Invoke();
     }
 }

@@ -31,7 +31,7 @@ internal class Summary
             }
             else
             {
-                Console.WriteLine($"No files would have been deleted.");
+                Console.WriteLine("No files would have been deleted.");
             }
         }
         else
@@ -42,7 +42,7 @@ internal class Summary
             }
             else
             {
-                Console.WriteLine($"No files have been deleted.");
+                Console.WriteLine("No files have been deleted.");
             }
         }
     }
